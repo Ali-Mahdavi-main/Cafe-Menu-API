@@ -1,37 +1,38 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using CafeMenu.Api.Data;
+using CafeMenu.Api.Dtos.Cafe;
+using CafeMenu.Api.Models;
+using CafeMenu.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using CafeMenu.Api.Data;
-using CafeMenu.Api.Models;
-using CafeMenu.Api.Dtos;
-using CafeMenu.Api.Dtos.Cafe; // Assume you have DTOs
 
 namespace CafeMenu.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IConfiguration _config;
-
-        public AuthController(AppDbContext context, IConfiguration config)
+        private readonly ITokenService _tokenService;
+        public AuthController(AppDbContext context, ITokenService tokenService)
         {
             _context = context;
-            _config = config;
+            _tokenService = tokenService;
         }
-
+        [AllowAnonymous]
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterCafeDto dto)
+        public async Task<IActionResult> Register( [FromBody] RegisterCafeDto dto)
         {
             if (await _context.Cafes.AnyAsync(c => c.UserName == dto.Username))
-                return BadRequest("نام کاربری قبلا انتخاب شده است");
-
+            {
+                return BadRequest("نام کاربری قبلا انتخواب شده است");
+            }
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-
             var cafe = new Cafe
             {
                 Name = dto.CafeName,
@@ -42,51 +43,52 @@ namespace CafeMenu.Api.Controllers
                 UserName = dto.Username,
                 PasswordHash = hashedPassword
             };
-
             _context.Cafes.Add(cafe);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "کافه با موفقیت ثبت شد", cafeId = cafe.Id });
+            var token = _tokenService.GenerateToken(cafe);
+            return Ok(new
+            {
+                token,
+                cafeName = cafe.Name
+            });
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
             var cafe = await _context.Cafes.FirstOrDefaultAsync(c => c.UserName == dto.Username);
-            if (cafe == null || !BCrypt.Net.BCrypt.Verify(dto.Password, cafe.PasswordHash))
-                return Unauthorized("نام کاربری یا رمز عبور اشتباه است");
+            if (cafe == null) return Unauthorized(new {message = "نام کاربری یا رمز عبور اشتباه است"});
 
-            var token = GenerateJwtToken(cafe);
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, cafe.PasswordHash);
+            if(!isPasswordValid) return Unauthorized(new{message = "نام کاربری یا رمز عبور اشتباه است"});
+
+            var token = _tokenService.GenerateToken(cafe);
+            
             return Ok(new { 
-                message = "ورود موفقیت‌آمیز بود", 
-                token,
-                cafeId = cafe.Id,
-                cafeName = cafe.Name,
-                theme = cafe.ThemeConfigJson,
-                instagram = cafe.InstagramUrl
+            token,
+            cafeName = cafe.Name,
+            theme = cafe.ThemeConfigJson,
+            instagram = cafe.InstagramUrl
             });
         }
-
-        private string GenerateJwtToken(Cafe cafe)
+        [HttpGet("me")]
+        public IActionResult Me()
         {
-            var claims = new[]
+            var cafeId = 
+                User.FindFirst("CafeId")?.Value;
+            var userName = 
+                User.Identity?.Name;
+            var cafeName =
+                User.FindFirst("CafeName")?.Value;
+        
+            return Ok(new
             {
-                new Claim(ClaimTypes.NameIdentifier, cafe.Id.ToString()),
-                new Claim("CafeId", cafe.Id.ToString()),
-                new Claim(ClaimTypes.Name, cafe.UserName)
-            };
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddDays(7),
-                signingCredentials: creds);
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+                cafeId,
+                userName,
+                cafeName
+            });
         }
     }
 }
