@@ -11,10 +11,11 @@ public class MenuItem
     public decimal Price {get; set;}
     public string ImageUrl {get; set;} = string.Empty;
     public bool IsAvailable {get; set;} = true;
+    public bool IsSpecial { get; set; }
 
     //تفکیک کافه ها(Multi-tenancy)
     public int CafeId {get; set;}
-    public Cafe Cafe {get; set;} = new();
+    public Cafe? Cafe {get; set;} = new();
 
     //Connection
     public int CategoryId {get; set;}

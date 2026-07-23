@@ -160,3 +160,15 @@
 /home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/Swashbuckle.AspNetCore.SwaggerGen.dll
 /home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/Swashbuckle.AspNetCore.SwaggerUI.dll
 /home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/BCrypt-Net-Next.dll
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/obj/Debug/net10.0/CafeMenu.Api.sourcelink.json
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/SkiaSharp.dll
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/linux-arm/native/libSkiaSharp.so
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/linux-arm64/native/libSkiaSharp.so
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/linux-musl-x64/native/libSkiaSharp.so
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/linux-x64/native/libSkiaSharp.so
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/osx/native/libSkiaSharp.dylib
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/win-arm64/native/libSkiaSharp.dll
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/win-x64/native/libSkiaSharp.dll
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/win-x86/native/libSkiaSharp.dll
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/CafeMenu.Api.staticwebassets.runtime.json

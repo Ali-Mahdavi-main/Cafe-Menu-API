@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace CafeMenu.Api.Dtos
+namespace CafeMenu.Api.Dtos.MenuItem
 {
     public class GetMenuItemDto
     {
@@ -13,6 +13,8 @@ namespace CafeMenu.Api.Dtos
     public decimal Price { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
     public bool IsAvailable { get; set; }
+    public bool IsSpecial { get; set; } = false;
+
     public string CategoryName { get; set; } = string.Empty;
     }
 }
