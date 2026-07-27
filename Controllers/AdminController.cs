@@ -69,6 +69,7 @@ public class AdminController : ControllerBase
             ThemeConfigJson = dto.ThemeConfigJson ?? "{}",
             Phone = dto.Phone,
             WorkingHours = dto.WorkingHours,
+            EventsEnabled = dto.EventsEnabled ?? true,
             UserName = dto.Username,
             PasswordHash = hashedPassword,
             PublicAccessKey = Guid.NewGuid().ToString("N")[..12]
@@ -77,11 +78,41 @@ public class AdminController : ControllerBase
         _context.Cafes.Add(cafe);
         await _context.SaveChangesAsync();
 
+        var plan = await _context.SubscriptionPlans
+            .FirstOrDefaultAsync(p => p.IsActive);
+
+        if (plan is null)
+        {
+            plan = new SubscriptionPlan
+            {
+                Name = "ماهانه پایه",
+                DurationDays = 30,
+                Price = 0,
+                IsActive = true
+            };
+            _context.SubscriptionPlans.Add(plan);
+            await _context.SaveChangesAsync();
+        }
+
+        var initialSubscription = new CafeSubscription
+        {
+            CafeId = cafe.Id,
+            PlanId = plan.Id,
+            StartDate = DateTime.UtcNow,
+            EndDate = DateTime.UtcNow.AddDays(plan.DurationDays),
+            IsActive = true,
+            WarningCount = 0
+        };
+
+        _context.CafeSubscriptions.Add(initialSubscription);
+        await _context.SaveChangesAsync();
+
         return Ok(new
         {
             cafeId = cafe.Id,
             cafeName = cafe.Name,
             username = cafe.UserName,
+            eventsEnabled = cafe.EventsEnabled,
             publicMenuUrl = $"{Request.Scheme}://{Request.Host}/menu/{cafe.Id}/{cafe.PublicAccessKey}"
         });
     }
@@ -102,6 +133,7 @@ public class AdminController : ControllerBase
                 c.LogoUrl,
                 c.WorkingHours,
                 c.ThemeConfigJson,
+                c.EventsEnabled,
                 PublicAccessKey = c.PublicAccessKey
             })
             .ToListAsync();
@@ -124,6 +156,10 @@ public class AdminController : ControllerBase
         cafe.Phone = dto.Phone;
         cafe.WorkingHours = dto.WorkingHours;
         cafe.ThemeConfigJson = dto.ThemeConfigJson ?? "{}";
+        if (dto.EventsEnabled.HasValue)
+        {
+            cafe.EventsEnabled = dto.EventsEnabled.Value;
+        }
 
         // Optionally change username/password if provided
         if (!string.IsNullOrWhiteSpace(dto.Username))

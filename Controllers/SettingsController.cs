@@ -32,10 +32,10 @@ public class SettingsController : ControllerBase
             cafeName = cafe.Name,
             logoUrl = cafe.LogoUrl,
             address = cafe.Address,
-            phone = cafe.Phone,             // if not in entity, add it
+            phone = cafe.Phone,
             instagram = cafe.InstagramUrl,
-            workingHours = cafe.WorkingHours // if not in entity, add it
-            // primaryColor / secondaryColor omitted – not editable by owner
+            workingHours = cafe.WorkingHours,
+            eventsEnabled = cafe.EventsEnabled
         });
     }
 

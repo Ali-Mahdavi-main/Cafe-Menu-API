@@ -11,4 +11,5 @@ public class AdminUpdateCafeDto
     public string? Phone { get; set; }
     public string? WorkingHours { get; set; }
     public string? ThemeConfigJson { get; set; }
+    public bool? EventsEnabled { get; set; }
 }

@@ -27,6 +27,7 @@ public class PublicController : ControllerBase
         var cafe = await _context.Cafes
             .Include(c => c.Categories)
                 .ThenInclude(cat => cat.MenuItems)
+            .Include(c => c.CafeEvents)
             .FirstOrDefaultAsync(c => c.Id == cafeId);
 
         if (cafe == null || cafe.PublicAccessKey != accessKey)
@@ -95,14 +96,15 @@ public class PublicController : ControllerBase
     })
     .ToList();
 
-    return Ok(new
+return Ok(new
     {
         cafeName = cafe.Name,
-        logoUrl = ImageUrlHelper.ToAbsolute(cafe.LogoUrl, Request),   // <--
+        logoUrl = ImageUrlHelper.ToAbsolute(cafe.LogoUrl, Request),
         address = cafe.Address,
         phone = cafe.Phone,
         instagram = cafe.InstagramUrl,
         workingHours = cafe.WorkingHours,
+        eventsEnabled = cafe.EventsEnabled,
         theme,
         menu
     });

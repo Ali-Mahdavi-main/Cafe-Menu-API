@@ -11,4 +11,5 @@ public class AdminCreateCafeDto
     public string? ThemeConfigJson { get; set; }
     public string? Phone { get; set; }
     public string? WorkingHours { get; set; }
+    public bool? EventsEnabled { get; set; }
 }

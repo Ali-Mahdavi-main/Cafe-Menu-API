@@ -14,6 +14,7 @@ namespace CafeMenu.Api.Models
 
         public string? Phone { get; set; }            
         public string? WorkingHours { get; set; }  
+        public bool EventsEnabled { get; set; } = true;
 
         // Security
         public string UserName { get; set; } = string.Empty;
@@ -23,5 +24,6 @@ namespace CafeMenu.Api.Models
         // Navigation
         public ICollection<Category> Categories { get; set; } = new List<Category>();
         public ICollection<MenuItem> MenuItems { get; set; } = new List<MenuItem>();
+        public ICollection<CafeEvent> CafeEvents { get; set; } = new List<CafeEvent>();
     }
 }

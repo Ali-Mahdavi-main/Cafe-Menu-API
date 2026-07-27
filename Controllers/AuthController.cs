@@ -74,20 +74,69 @@ namespace CafeMenu.Api.Controllers
             });
         }
         [HttpGet("me")]
-        public IActionResult Me()
+        public async Task<IActionResult> Me()
         {
-            var cafeId = 
-                User.FindFirst("CafeId")?.Value;
-            var userName = 
-                User.Identity?.Name;
-            var cafeName =
-                User.FindFirst("CafeName")?.Value;
-        
+            var cafeIdClaim = User.FindFirst("CafeId")?.Value;
+            var userName = User.Identity?.Name;
+            var cafeName = User.FindFirst("CafeName")?.Value;
+
+            if (string.IsNullOrEmpty(cafeIdClaim) || !int.TryParse(cafeIdClaim, out var cafeId))
+            {
+                return Unauthorized();
+            }
+
+            var latestSubscription = await _context.CafeSubscriptions
+                .Include(s => s.Plan)
+                .Where(s => s.CafeId == cafeId)
+                .OrderByDescending(s => s.EndDate)
+                .FirstOrDefaultAsync();
+
+            var now = DateTime.UtcNow;
+            object? subscriptionInfo = null;
+
+            if (latestSubscription != null)
+            {
+                var remainingDays = latestSubscription.EndDate > now
+                    ? (int)Math.Ceiling((latestSubscription.EndDate - now).TotalDays)
+                    : 0;
+
+                string status;
+                if (latestSubscription.IsActive && latestSubscription.EndDate > now)
+                {
+                    status = "فعال";
+                }
+                else if (latestSubscription.GracePeriodEnd.HasValue && latestSubscription.GracePeriodEnd.Value > now)
+                {
+                    status = "در دوره تمدید";
+                }
+                else
+                {
+                    status = "غیر فعال";
+                }
+
+                subscriptionInfo = new
+                {
+                    status,
+                    isActive = latestSubscription.IsActive,
+                    planName = latestSubscription.Plan?.Name,
+                    remainingDays,
+                    warningCount = latestSubscription.WarningCount,
+                    endDate = latestSubscription.EndDate,
+                    gracePeriodEnd = latestSubscription.GracePeriodEnd
+                };
+            }
+
+            var cafe = await _context.Cafes.FindAsync(cafeId);
+
+            object eventsEnabled = cafe?.EventsEnabled ?? true;
+
             return Ok(new
             {
                 cafeId,
                 userName,
-                cafeName
+                cafeName,
+                eventsEnabled,
+                subscription = subscriptionInfo
             });
         }
     }
