@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<CafeSubscription> CafeSubscriptions { get; set; }
     public DbSet<Payment> Payments { get; set; }
     public DbSet<CafeEvent> CafeEvents { get; set; }
+    public DbSet<CafeDisableStatus> CafeDisableStatuses { get; set; }
 
     public int CurrentCafeId => int.TryParse(_httpContextAccessor.HttpContext?.Items["CafeId"]?.ToString(), out var id) ? id : 0;
 

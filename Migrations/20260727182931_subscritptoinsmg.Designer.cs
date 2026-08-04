@@ -4,6 +4,7 @@ using CafeMenu.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CafeMenu.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260727182931_subscritptoinsmg")]
+    partial class subscritptoinsmg
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -76,33 +79,6 @@ namespace CafeMenu.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Cafes");
-                });
-
-            modelBuilder.Entity("CafeMenu.Api.Models.CafeDisableStatus", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CafeId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("DisabledAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DisabledBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDisabled")
-                        .HasColumnType("bit");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CafeId");
-
-                    b.ToTable("CafeDisableStatuses");
                 });
 
             modelBuilder.Entity("CafeMenu.Api.Models.CafeEvent", b =>
@@ -343,17 +319,6 @@ namespace CafeMenu.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SubscriptionPlans");
-                });
-
-            modelBuilder.Entity("CafeMenu.Api.Models.CafeDisableStatus", b =>
-                {
-                    b.HasOne("CafeMenu.Api.Models.Cafe", "Cafe")
-                        .WithMany()
-                        .HasForeignKey("CafeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Cafe");
                 });
 
             modelBuilder.Entity("CafeMenu.Api.Models.CafeEvent", b =>

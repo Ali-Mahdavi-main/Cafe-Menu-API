@@ -1,4 +1,3 @@
-
 using CafeMenu.Api.Data;
 using CafeMenu.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +6,9 @@ namespace CafeMenu.Api.Services;
 
 public class SubscriptionService : ISubscriptionService
 {
+    private const string TrialPlanName = "دوره آزمایشی رایگان";
+    private const int TrialDurationDays = 14;
+
     private readonly AppDbContext _context;
     private readonly ILogger<SubscriptionService> _logger;
     private readonly INotificationService _notificationService;
@@ -71,6 +73,47 @@ public class SubscriptionService : ISubscriptionService
         return payment;
     }
 
+    /// <summary>
+    /// Creates (or reuses) a dedicated trial plan and assigns it as the cafe's
+    /// active subscription. Used both for admin-created cafes and public self-registration,
+    /// so trial terms can never accidentally drift from whatever plan happens to be
+    /// first in the table.
+    /// </summary>
+    public async Task<CafeSubscription> AssignTrialSubscriptionAsync(int cafeId)
+    {
+        var trialPlan = await _context.SubscriptionPlans
+            .FirstOrDefaultAsync(p => p.IsActive && p.Name == TrialPlanName);
+
+        if (trialPlan is null)
+        {
+            trialPlan = new SubscriptionPlan
+            {
+                Name = TrialPlanName,
+                DurationDays = TrialDurationDays,
+                Price = 0,
+                IsActive = true
+            };
+            _context.SubscriptionPlans.Add(trialPlan);
+            await _context.SaveChangesAsync();
+        }
+
+        var subscription = new CafeSubscription
+        {
+            CafeId = cafeId,
+            PlanId = trialPlan.Id,
+            StartDate = DateTime.UtcNow,
+            EndDate = DateTime.UtcNow.AddDays(trialPlan.DurationDays),
+            IsActive = true,
+            IsFree = true,
+            WarningCount = 0
+        };
+
+        _context.CafeSubscriptions.Add(subscription);
+        await _context.SaveChangesAsync();
+
+        return subscription;
+    }
+
     public async Task<bool> ActivateSubscriptionAsync(int cafeId, int subscriptionId, string authority, long refId)
     {
         var subscription = await _context.CafeSubscriptions
@@ -85,6 +128,17 @@ public class SubscriptionService : ISubscriptionService
 
         if (payment is null)
             return false;
+
+        // Deactivate any existing active subscriptions for this cafe — this is the
+        // ONLY place an old subscription should be turned off, and only once payment
+        // has actually been confirmed.
+        var existingSubs = await _context.CafeSubscriptions
+            .Where(s => s.CafeId == cafeId && s.IsActive && s.Id != subscriptionId)
+            .ToArrayAsync();
+        foreach (var sub in existingSubs)
+        {
+            sub.IsActive = false;
+        }
 
         payment.Status = "Success";
         payment.ReferenceId = refId.ToString();
@@ -108,6 +162,30 @@ public class SubscriptionService : ISubscriptionService
     public async Task CheckExpirationsAndSendWarningsAsync()
     {
         var now = DateTime.UtcNow;
+
+        var activeExpiringSoon = await _context.CafeSubscriptions
+            .Include(s => s.Cafe)
+            .Include(s => s.Plan)
+            .Where(s => s.IsActive && s.EndDate > now && s.EndDate <= now.AddDays(5))
+            .ToArrayAsync();
+
+        foreach (var subscription in activeExpiringSoon)
+        {
+            var daysUntilExpiry = (subscription.EndDate - now).Days;
+            if (daysUntilExpiry <= 0) continue;
+
+            if (!subscription.LastWarningSent.HasValue || (now - subscription.LastWarningSent.Value).TotalHours >= 24)
+            {
+                await _notificationService.SendExpiryReminderAsync(
+                    subscription.CafeId,
+                    subscription.Cafe?.Name,
+                    daysUntilExpiry,
+                    subscription.EndDate);
+
+                subscription.LastWarningSent = now;
+                subscription.WarningCount++;
+            }
+        }
 
         var expiredSubscriptions = await _context.CafeSubscriptions
             .Include(s => s.Cafe)

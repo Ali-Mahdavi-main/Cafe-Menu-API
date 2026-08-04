@@ -12,9 +12,11 @@ public class CafeSubscription
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsFree { get; set; } = false;
 
     public DateTime? GracePeriodStart { get; set; }
     public DateTime? GracePeriodEnd { get; set; }
     public DateTime? LastWarningSent { get; set; }
     public int WarningCount { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

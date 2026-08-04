@@ -80,4 +80,47 @@ public class CategoryController : ControllerBase
        
         return NoContent();
     }
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateCategory(int id,[FromBody] ModiifyCategory dto)
+    {   
+        var cafeId = int.Parse(
+            User.FindFirstValue("CafeId")!
+        );
+        var category = await _context.Categories.FirstOrDefaultAsync(x => x.Id == id && 
+        x.CafeId == cafeId);
+
+        if(category == null) return NotFound("ایتم مورد نظر پیدا نشد");
+
+        category.Name = dto.Name;
+        
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!_context.Categories.Any(e => e.Id == id)) return NotFound("ایتم پیدا نشد");
+            throw;
+        }
+        return NoContent();
+    }
+
+// DELETE
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteCategory(int id)
+    {   
+        var cafeId = int.Parse(
+            User.FindFirstValue("CafeId")!
+        );
+        var category = await _context.Categories.FirstOrDefaultAsync(x => 
+        x.Id == id &&
+        x.CafeId == cafeId);
+      
+        if (category == null) return NotFound();
+
+        _context.Categories.Remove(category);
+        await _context.SaveChangesAsync(); 
+
+        return NoContent();
+    }
 }

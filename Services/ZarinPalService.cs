@@ -2,89 +2,130 @@ namespace CafeMenu.Api.Services;
 
 using CafeMenu.Api.Models;
 using GiftShop.Model;
+using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
+using System.Text.Json;
 
-public class ZarinPalService : IPaymentService
+public class ZarinPalPaymentService : IPaymentService
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _merchantId;
-    private readonly ILogger<ZarinPalService> _logger;
+    private readonly HttpClient _http;
+    private readonly PaymentOptions _options;
+    private readonly ILogger<ZarinPalPaymentService> _logger;
 
-    public ZarinPalService(HttpClient httpClient, IConfiguration config, ILogger<ZarinPalService> logger)
+    public bool IsSandbox => _options.UseSandbox;
+
+    private string RequestUrl => IsSandbox
+        ? "https://sandbox.zarinpal.com/pg/v4/payment/request.json"
+        : "https://payment.zarinpal.com/pg/v4/payment/request.json";
+
+    private string VerifyUrl => IsSandbox
+        ? "https://sandbox.zarinpal.com/pg/v4/payment/verify.json"
+        : "https://payment.zarinpal.com/pg/v4/payment/verify.json";
+
+    public ZarinPalPaymentService(HttpClient http, IOptions<PaymentOptions> options, ILogger<ZarinPalPaymentService> logger)
     {
-        _httpClient = httpClient;
-        _merchantId = config["ZarinPal:MerchantId"] ?? throw new ArgumentNullException("ZarinPal:MerchantId is missing");
+        _http = http;
+        _options = options.Value;
         _logger = logger;
     }
 
     public async Task<string?> CreateRequestAsync(int amount, string callbackUrl, string description)
     {
-        var request = new
+        var payload = new
         {
-            merchant_id = _merchantId,
+            merchant_id = _options.ZarinPal.MerchantId,
             amount,
             callback_url = callbackUrl,
-            description
+            description,
+            // NOTE: confirm whether `amount` here is already in Rial or Toman before relying on
+            // sandbox results — v4 accepts a currency hint, but if your plan prices are stored in
+            // Toman you may need "IRT" here (or multiply amount by 10) to match what ZarinPal expects.
+            currency = "IRT",
         };
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("pg/v4/payment/request.json", request);
+            var response = await _http.PostAsJsonAsync(RequestUrl, payload);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
 
-            if (!response.IsSuccessStatusCode)
+            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Zarinpal request failed with status {Status}. Body: {Body}", response.StatusCode, error);
-                return null;
+                var code = data.TryGetProperty("code", out var codeEl) ? codeEl.GetInt32() : 0;
+                if (code == 100 && data.TryGetProperty("authority", out var authEl))
+                {
+                    return authEl.GetString();
+                }
             }
 
-            var result = await response.Content.ReadFromJsonAsync<ZarinPalResponse>();
-
-            if (result?.Data?.Code != 100)
-            {
-                _logger.LogError("Zarinpal request rejected: {Message}", result?.Data?.Message);
-                return null;
-            }
-
-            return result.Data.Authority;
+            _logger.LogWarning(
+                "ZarinPal payment request failed: {Error} (sandbox={Sandbox})",
+                ExtractErrorMessage(root), IsSandbox);
+            return null;
         }
         catch (Exception ex)
         {
-            _logger.LogCritical(ex, "Catastrophic failure communicating with ZarinPal while creating a payment request.");
+            _logger.LogError(ex, "ZarinPal payment request threw (sandbox={Sandbox})", IsSandbox);
             return null;
         }
     }
 
-    public async Task<PaymentVerificationResult> VerifyRequestAsync(string authority, int amount)
+    public async Task<ZarinPalVerificationResult> VerifyRequestAsync(string authority, int amount)
     {
-        var request = new { merchant_id = _merchantId, authority, amount };
+        var payload = new
+        {
+            merchant_id = _options.ZarinPal.MerchantId,
+            amount,
+            authority,
+        };
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("pg/v4/payment/verify.json", request);
+            var response = await _http.PostAsJsonAsync(VerifyUrl, payload);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
 
-            if (!response.IsSuccessStatusCode)
+            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Zarinpal verify request failed with status {Status}. Body: {Body}", response.StatusCode, error);
-                return new PaymentVerificationResult(false, null, "Gateway error during verification.");
+                var code = data.TryGetProperty("code", out var codeEl) ? codeEl.GetInt32() : 0;
+
+                // 100 = verified just now, 101 = this authority was already verified earlier —
+                // ZarinPal treats both as a successful, idempotent verification.
+                if (code is 100 or 101)
+                {
+                    long? refId = data.TryGetProperty("ref_id", out var refEl) && refEl.ValueKind == JsonValueKind.Number
+                        ? refEl.GetInt64()
+                        : null;
+
+                    return new ZarinPalVerificationResult { IsSuccess = true, RefId = refId };
+                }
             }
 
-            var result = await response.Content.ReadFromJsonAsync<ZarinPalVerifyResponse>();
-
-            if (result?.Data?.Code == 100 || result?.Data?.Code == 101)
+            return new ZarinPalVerificationResult
             {
-                _logger.LogInformation("Zarinpal verification success. RefId: {RefId}", result.Data.RefId);
-                return new PaymentVerificationResult(true, result.Data.RefId, "Payment verified.");
-            }
-
-            _logger.LogWarning("Zarinpal verification failed: {Code} - {Message}", result?.Data?.Code, result?.Data?.Message);
-            return new PaymentVerificationResult(false, null, result?.Data?.Message ?? "Payment verification failed.");
+                IsSuccess = false,
+                ErrorMessage = ExtractErrorMessage(root),
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogCritical(ex, "Failed to verify ZarinPal payment.");
-            return new PaymentVerificationResult(false, null, "Unexpected payment verification failure.");
+            _logger.LogError(ex, "ZarinPal verification threw (sandbox={Sandbox})", IsSandbox);
+            return new ZarinPalVerificationResult { IsSuccess = false, ErrorMessage = ex.Message };
         }
+    }
+
+    // ZarinPal's "errors" field is [] on success and an object on failure — it genuinely changes
+    // JSON type, so this has to branch on ValueKind instead of deserializing into a fixed model.
+    private static string ExtractErrorMessage(JsonElement root)
+    {
+        if (root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
+        {
+            var message = errors.TryGetProperty("message", out var msgEl) ? msgEl.GetString() : null;
+            var code = errors.TryGetProperty("code", out var codeEl) ? codeEl.ToString() : null;
+            return $"{message} (code: {code})";
+        }
+        return "Unknown ZarinPal error";
     }
 }

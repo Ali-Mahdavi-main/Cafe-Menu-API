@@ -10,4 +10,6 @@ public interface ISubscriptionService
     Task<bool> ActivateSubscriptionAsync(int cafeId, int subscriptionId, string authority, long refId);
     Task CheckExpirationsAndSendWarningsAsync();
     Task UpdateMenuAvailabilityAsync();
+    Task<CafeSubscription> AssignTrialSubscriptionAsync(int cafeId);
+
 }

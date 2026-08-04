@@ -20,35 +20,39 @@ public class PublicEventsController : ControllerBase
     }
 
     [HttpGet("{cafeId}/{accessKey}")]
-    public async Task<IActionResult> GetEvents(int cafeId, string accessKey)
-    {
-        var cafe = await _context.Cafes
-            .Include(c => c.CafeEvents)
-            .FirstOrDefaultAsync(c => c.Id == cafeId && c.PublicAccessKey == accessKey);
+public async Task<IActionResult> GetEvents(int cafeId, string accessKey)
+{
+    var cafe = await _context.Cafes
+        .Include(c => c.CafeEvents)
+        .FirstOrDefaultAsync(c => c.Id == cafeId && c.PublicAccessKey == accessKey);
 
-        if (cafe is null)
-            return NotFound("کافه پیدا نشد");
+    if (cafe is null)
+        return NotFound("کافه پیدا نشد");
 
-        var hasActiveSubscription = await _context.CafeSubscriptions
-            .AnyAsync(s => s.CafeId == cafeId && s.IsActive && s.EndDate > DateTime.UtcNow);
+    var now = DateTime.UtcNow;
+    var activeSub = await _context.CafeSubscriptions
+        .FirstOrDefaultAsync(s => s.CafeId == cafeId && s.IsActive && s.EndDate > now);
 
-        if (!cafe.EventsEnabled || !hasActiveSubscription)
-            return Ok(Array.Empty<object>());
+    // Debug flags – send them in the response
+    if (!cafe.EventsEnabled)
+        return Ok(new { debug = "EventsEnabled is false" });
 
-        var events = cafe.CafeEvents
-            .Where(e => e.IsActive)
-            .OrderBy(e => e.EventDate)
-            .Select(e => new PublicEventDto
-            {
-                Id = e.Id,
-                Title = e.Title,
-                Description = e.Description,
-                ImageUrl = e.ImageUrl,
-                Fee = e.Fee,
-                EventDateShamsi = PersianDateHelper.ToPersianDateString(e.EventDate)
-            })
-            .ToList();
+    if (activeSub == null)
+        return Ok(new { debug = "No active subscription" });
 
-        return Ok(events);
-    }
-}
+    var events = cafe.CafeEvents
+        .Where(e => e.IsActive)
+        .OrderBy(e => e.EventDate)
+        .Select(e => new PublicEventDto
+        {
+            Id = e.Id,
+            Title = e.Title,
+            Description = e.Description,
+            ImageUrl = e.ImageUrl,
+            Fee = e.Fee,
+            EventDateShamsi = PersianDateHelper.ToPersianDateString(e.EventDate)
+        })
+        .ToList();
+
+    return Ok(events);
+}}

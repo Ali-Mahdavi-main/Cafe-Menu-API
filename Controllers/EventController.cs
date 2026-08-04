@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using CafeMenu.Api.Data;
 using CafeMenu.Api.Dtos.Events;
 using CafeMenu.Api.Helpers;
@@ -9,71 +13,100 @@ using Microsoft.EntityFrameworkCore;
 namespace CafeMenu.Api.Controllers;
 
 [ApiController]
-[Route("api/admin/events")]
-[Authorize(Policy = "AdminOnly")]
+[Route("api/events")]
+[Authorize]
 public class EventController : ControllerBase
 {
     private readonly AppDbContext _context;
 
-    public EventController(AppDbContext context)
+    public EventController(AppDbContext context) => _context = context;
+
+    // Safely extract CafeId from JWT
+    private int GetCafeId()
     {
-        _context = context;
+        var claim = User.FindFirst("CafeId")?.Value;
+        return int.TryParse(claim, out var cafeId) ? cafeId : 0;
     }
 
+    // GET /api/events – only for the logged‑in café
     [HttpGet]
     public async Task<IActionResult> GetEvents()
     {
-        var events = await _context.CafeEvents
-            .OrderByDescending(e => e.EventDate)
-            .Select(e => new
-            {
-                e.Id,
-                e.Title,
-                e.Description,
-                e.ImageUrl,
-                e.Fee,
-                e.EventDate,
-                eventDateShamsi = PersianDateHelper.ToPersianDateString(e.EventDate),
-                e.IsActive
-            })
-            .ToListAsync();
+        var cafeId = GetCafeId();
+        if (cafeId == 0)
+            return Unauthorized(new { message = "Cafe not identified" });
 
-        return Ok(events);
+        // 1. Fetch from DB without any conversion
+        var events = await _context.CafeEvents
+            .Where(e => e.CafeId == cafeId)
+            .OrderByDescending(e => e.EventDate)
+            .ToListAsync();                       // <-- materialise here
+
+        // 2. Map to response objects safely in memory
+        var result = events.Select(e => new
+        {
+            e.Id,
+            e.Title,
+            e.Description,
+            e.ImageUrl,
+            e.Fee,
+            e.EventDate,
+            eventDateShamsi = PersianDateHelper.ToPersianDateString(e.EventDate),
+            e.IsActive
+        });
+
+        return Ok(result);
     }
 
+    // POST /api/events
     [HttpPost]
-    public async Task<IActionResult> CreateEvent([FromBody] AdminCreateEventDto dto)
+    public async Task<IActionResult> CreateEvent([FromBody] CreateEventDto dto)
     {
-        if (dto.CafeId <= 0 || string.IsNullOrWhiteSpace(dto.Title) || string.IsNullOrWhiteSpace(dto.Description) || string.IsNullOrWhiteSpace(dto.ImageUrl))
-            return BadRequest("CafeId, title, description, and image URL are required.");
+        var cafeId = GetCafeId();
+        if (cafeId == 0) return Unauthorized();
 
-        var cafe = await _context.Cafes.FindAsync(dto.CafeId);
-        if (cafe is null)
-            return BadRequest("The selected cafe does not exist.");
+        if (string.IsNullOrWhiteSpace(dto.Title) ||
+            string.IsNullOrWhiteSpace(dto.Description) ||
+            string.IsNullOrWhiteSpace(dto.ImageUrl) )
+            return BadRequest("Title, description, and image URL are required.");
+         if (dto.EventDate < new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc))
+         return BadRequest("Event date is too far in the past.");   
 
         var cafeEvent = new CafeEvent
         {
-            CafeId = dto.CafeId,
+            CafeId = cafeId,
             Title = dto.Title,
             Description = dto.Description,
             ImageUrl = dto.ImageUrl,
             Fee = dto.Fee,
-            EventDate = dto.EventDate,
+            EventDate = dto.EventDate == default ? DateTime.UtcNow : dto.EventDate,
             IsActive = true
         };
 
         _context.CafeEvents.Add(cafeEvent);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetEvent), new { id = cafeEvent.Id }, cafeEvent);
+        return CreatedAtAction(nameof(GetEvent), new { id = cafeEvent.Id }, new
+        {
+            cafeEvent.Id,
+            cafeEvent.Title,
+            cafeEvent.Description,
+            cafeEvent.ImageUrl,
+            cafeEvent.Fee,
+            cafeEvent.EventDate,
+            eventDateShamsi = PersianDateHelper.ToPersianDateString(cafeEvent.EventDate),
+            cafeEvent.IsActive
+        });
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetEvent(int id)
     {
-        var cafeEvent = await _context.CafeEvents.FindAsync(id);
-        if (cafeEvent is null)
-            return NotFound();
+        var cafeId = GetCafeId();
+        var cafeEvent = await _context.CafeEvents
+            .FirstOrDefaultAsync(e => e.Id == id && e.CafeId == cafeId);
+
+        if (cafeEvent is null) return NotFound();
 
         return Ok(new
         {
@@ -89,11 +122,13 @@ public class EventController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateEvent(int id, [FromBody] AdminUpdateEventDto dto)
+    public async Task<IActionResult> UpdateEvent(int id, [FromBody] UpdateEventDto dto)
     {
-        var cafeEvent = await _context.CafeEvents.FindAsync(id);
-        if (cafeEvent is null)
-            return NotFound();
+        var cafeId = GetCafeId();
+        var cafeEvent = await _context.CafeEvents
+            .FirstOrDefaultAsync(e => e.Id == id && e.CafeId == cafeId);
+
+        if (cafeEvent is null) return NotFound();
 
         cafeEvent.Title = dto.Title;
         cafeEvent.Description = dto.Description;
@@ -109,13 +144,14 @@ public class EventController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteEvent(int id)
     {
-        var cafeEvent = await _context.CafeEvents.FindAsync(id);
-        if (cafeEvent is null)
-            return NotFound();
+        var cafeId = GetCafeId();
+        var cafeEvent = await _context.CafeEvents
+            .FirstOrDefaultAsync(e => e.Id == id && e.CafeId == cafeId);
+
+        if (cafeEvent is null) return NotFound();
 
         _context.CafeEvents.Remove(cafeEvent);
         await _context.SaveChangesAsync();
-
         return NoContent();
     }
 }

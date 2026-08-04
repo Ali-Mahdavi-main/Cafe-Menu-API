@@ -28,4 +28,10 @@ public class NotificationService : INotificationService
         _logger.LogWarning("Cafe {CafeId} menu has been disabled after subscription grace period exhaustion. Contact: {Contact}", cafeId, contact ?? "n/a");
         return Task.CompletedTask;
     }
+
+    public Task SendExpiryReminderAsync(int cafeId, string? contact, int daysUntilExpiry, DateTime endDate)
+    {
+        _logger.LogInformation("Cafe {CafeId} subscription expires in {DaysUntilExpiry} day(s) on {EndDate}. Contact: {Contact} — REMINDER TO PAY", cafeId, daysUntilExpiry, endDate, contact ?? "n/a");
+        return Task.CompletedTask;
+    }
 }

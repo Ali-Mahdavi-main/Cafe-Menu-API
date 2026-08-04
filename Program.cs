@@ -21,7 +21,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<CafeMenu.Api.Data.AppDbContext>(options =>
+builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -29,11 +29,8 @@ builder.Services.AddScoped<ICurrentCafeService, CurrentCafeService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-builder.Services.AddHttpClient<IPaymentService, ZarinPalService>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ZarinPal:BaseUrl"] ?? "https://sandbox.zarinpal.com/");
-    client.Timeout = TimeSpan.FromSeconds(30);
-});
+builder.Services.Configure<PaymentOptions>(builder.Configuration.GetSection("Payment"));
+builder.Services.AddHttpClient<IPaymentService, ZarinPalPaymentService>();
 
 builder.Services.AddHostedService<SubscriptionMonitoringService>();
 
@@ -58,13 +55,17 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(ClaimTypes.Role, "Admin"));
 });
 
+// CORS configuration
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                     ?? new[] { "http://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
@@ -72,7 +73,7 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<CafeMenu.Api.Data.AppDbContext>();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     context.Database.Migrate();
 }
 
@@ -83,16 +84,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    app.UseCors(policy =>
-        policy.AllowAnyOrigin()
-            .AllowAnyHeader()
-            .AllowAnyMethod());
     app.UseStaticFiles();
 }
 
 app.UseHttpsRedirection();
 app.UseMiddleware<ExceptionMiddleware>();
+
+// Apply CORS (now always active)
+app.UseCors("ReactPolicy");
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
