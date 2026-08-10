@@ -20,39 +20,45 @@ public class PublicEventsController : ControllerBase
     }
 
     [HttpGet("{cafeId}/{accessKey}")]
-public async Task<IActionResult> GetEvents(int cafeId, string accessKey)
-{
-    var cafe = await _context.Cafes
-        .Include(c => c.CafeEvents)
-        .FirstOrDefaultAsync(c => c.Id == cafeId && c.PublicAccessKey == accessKey);
+    public async Task<IActionResult> GetEvents(int cafeId, string accessKey)
+    {
+        var cafe = await _context.Cafes
+            .Where(c => c.Id == cafeId && c.PublicAccessKey == accessKey)
+            .Select(c => new { c.EventsEnabled })
+            .FirstOrDefaultAsync();
 
-    if (cafe is null)
-        return NotFound("کافه پیدا نشد");
+        if (cafe is null)
+            return NotFound("کافه پیدا نشد");
 
-    var now = DateTime.UtcNow;
-    var activeSub = await _context.CafeSubscriptions
-        .FirstOrDefaultAsync(s => s.CafeId == cafeId && s.IsActive && s.EndDate > now);
+        // Same class of "hide everything" cases GetMenuByCafe already handles via IsAvailable —
+        // events have no such flag, so these are checked explicitly instead of leaking the reason.
+        var isDisabled = await _context.CafeDisableStatuses
+            .AnyAsync(s => s.CafeId == cafeId && s.IsDisabled);
 
-    // Debug flags – send them in the response
-    if (!cafe.EventsEnabled)
-        return Ok(new { debug = "EventsEnabled is false" });
+        if (isDisabled || !cafe.EventsEnabled)
+            return Ok(Array.Empty<PublicEventDto>());
 
-    if (activeSub == null)
-        return Ok(new { debug = "No active subscription" });
+        var now = DateTime.UtcNow;
+        var hasActiveSubscription = await _context.CafeSubscriptions
+            .AnyAsync(s => s.CafeId == cafeId && s.IsActive && s.EndDate > now);
 
-    var events = cafe.CafeEvents
-        .Where(e => e.IsActive)
-        .OrderBy(e => e.EventDate)
-        .Select(e => new PublicEventDto
-        {
-            Id = e.Id,
-            Title = e.Title,
-            Description = e.Description,
-            ImageUrl = e.ImageUrl,
-            Fee = e.Fee,
-            EventDateShamsi = PersianDateHelper.ToPersianDateString(e.EventDate)
-        })
-        .ToList();
+        if (!hasActiveSubscription)
+            return Ok(Array.Empty<PublicEventDto>());
 
-    return Ok(events);
-}}
+        var events = await _context.CafeEvents
+            .Where(e => e.CafeId == cafeId && e.IsActive)
+            .OrderBy(e => e.EventDate)
+            .Select(e => new PublicEventDto
+            {
+                Id = e.Id,
+                Title = e.Title,
+                Description = e.Description,
+                ImageUrl = e.ImageUrl,
+                Fee = e.Fee,
+                EventDateShamsi = PersianDateHelper.ToPersianDateString(e.EventDate)
+            })
+            .ToListAsync();
+
+        return Ok(events);
+    }
+}

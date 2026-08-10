@@ -34,6 +34,10 @@ builder.Services.AddHttpClient<IPaymentService, ZarinPalPaymentService>();
 
 builder.Services.AddHostedService<SubscriptionMonitoringService>();
 
+// Fail fast if secrets are missing instead of throwing a null-ref deep in JWT validation
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Jwt:Key is not configured. Set it via environment variable or a secret store.");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(option =>
     {
@@ -45,7 +49,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.FromMinutes(1) // default is 5 min; tighten if you want stricter expiry
         };
     });
 
@@ -55,9 +60,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireClaim(ClaimTypes.Role, "Admin"));
 });
 
-// CORS configuration
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                     ?? new[] { "http://localhost:5173" };
+    ?? throw new InvalidOperationException("Cors:AllowedOrigins must be configured.");
+    // Don't silently fall back to localhost in production — if this section
+    // is missing on the server, you want a crash on startup, not an app that's
+    // accidentally unreachable from your real frontend or (worse) open to a
+    // misconfigured wildcard.
 
 builder.Services.AddCors(options =>
 {
@@ -74,7 +82,16 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.Migrate();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        context.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(ex, "Database migration failed on startup.");
+        throw; // don't let the app come up half-migrated and silently serve stale schema
+    }
 }
 
 app.MapControllers();
@@ -84,17 +101,21 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseStaticFiles();
+}
+else
+{
+    app.UseHsts(); // adds Strict-Transport-Security; only meaningful/safe once you're on HTTPS in prod
 }
 
 app.UseHttpsRedirection();
 app.UseMiddleware<ExceptionMiddleware>();
 
-// Apply CORS (now always active)
 app.UseCors("ReactPolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseStaticFiles();
+
+app.UseStaticFiles(); // was duplicated — one call is enough
 app.MapFallbackToFile("index.html");
+
 app.Run();
