@@ -5,6 +5,6 @@ public class Category
     public int Id {set; get;}
     public string Name {get; set;} = string.Empty;
     public int CafeId {get; set;}
-    public Cafe? Cafe {get; set;} = new();
+    public Cafe? Cafe {get; set;}
     public ICollection<MenuItem> MenuItems {get; set;} = new List<MenuItem>();
 }

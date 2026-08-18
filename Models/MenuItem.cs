@@ -15,7 +15,7 @@ public class MenuItem
 
     //تفکیک کافه ها(Multi-tenancy)
     public int CafeId {get; set;}
-    public Cafe? Cafe {get; set;} = new();
+    public Cafe? Cafe {get; set;}
 
     //Connection
     public int CategoryId {get; set;}
