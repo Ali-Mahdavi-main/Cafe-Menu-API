@@ -8,7 +8,7 @@ namespace CafeMenu.Api.Dtos.MenuItem
     [Required]
     [MaxLength(100)]
     public string Title { get; set; } = string.Empty;
-    [MaxLength(100)]
+    [MaxLength(500)]
     public string Description { get; set; } = string.Empty;
     [Range(0, 100000000)]
     public decimal Price { get; set; }
