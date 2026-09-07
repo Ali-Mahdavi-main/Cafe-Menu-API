@@ -37,6 +37,7 @@ public class UploadController : ControllerBase
 
         using var stream = file.OpenReadStream();
         using var original = SKBitmap.Decode(stream);
+        if (original == null) return BadRequest("تصویر نامعتبر است");
 
         // Determine new size (max 1200px)
         const int maxDimension = 1200;

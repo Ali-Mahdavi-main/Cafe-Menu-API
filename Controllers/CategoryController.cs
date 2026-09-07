@@ -8,11 +8,13 @@ using CafeMenu.Api.Dtos;
 using Microsoft.EntityFrameworkCore;
 using CafeMenu.Api.Dtos.Category;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CafeMenu.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class CategoryController : ControllerBase
 {
     private readonly AppDbContext _context;

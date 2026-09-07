@@ -94,8 +94,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.MapControllers();
-
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -116,6 +114,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseStaticFiles(); // was duplicated — one call is enough
+
+app.MapControllers();
+
 app.MapFallbackToFile("index.html");
 
 app.Run();
