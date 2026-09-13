@@ -2,11 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CafeMenu.Api.Dtos.Category;
 
-public class CreateCategoryDto
+public class CreateParentCategoryDto
 {
     [Required]
     [MaxLength(50)]
     public string Name { get; set; } = string.Empty;
-
-    public int? ParentCategoryId { get; set; }
 }

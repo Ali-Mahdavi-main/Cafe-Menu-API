@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<Cafe> Cafes { get; set; }
+    public DbSet<ParentCategory> ParentCategories { get; set; }
     public DbSet<Category> Categories { get; set; }
     public DbSet<MenuItem> MenuItems { get; set; }
     public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
@@ -49,6 +50,12 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<MenuItem>()
             .Property(m => m.Price)
             .HasColumnType("decimal(18,2)");
+
+        modelBuilder.Entity<Category>()
+            .HasOne(c => c.ParentCategory)
+            .WithMany(pc => pc.Categories)
+            .HasForeignKey(c => c.ParentCategoryId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Category>()
             .HasQueryFilter(c => _currentCafeService.CafeId == null || c.CafeId == _currentCafeService.CafeId);

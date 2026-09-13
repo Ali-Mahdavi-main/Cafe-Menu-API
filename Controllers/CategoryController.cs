@@ -36,65 +36,69 @@ public class CategoryController : ControllerBase
         var categories = await _context.Categories
             .Where(c => c.CafeId == cafeId)
             .Include(c => c.Cafe)
+            .Include(c => c.ParentCategory)
             .Select(c => new GetCategoryDto
             {
                 Id = c.Id,
                 Name = c.Name,
-                CafeName = c.Cafe.Name
+                CafeName = c.Cafe.Name,
+                ParentCategoryId = c.ParentCategoryId,
+                ParentCategoryName = c.ParentCategory != null ? c.ParentCategory.Name : null
             })
             .ToListAsync();
 
         return Ok(categories);
     }
-    // گرفتن تمام دسته‌بندی‌های یک کافه خاص
+
     [HttpGet("{cafeId}")]
     public async Task<ActionResult<List<GetCategoryDto>>> GetCategoriesByCafe(int cafeId)
     {
         var categories = await _context.Categories
             .Where(c => c.CafeId == cafeId)
             .Include(c => c.Cafe)
+            .Include(c => c.ParentCategory)
             .Select(c => new GetCategoryDto
             {
                 Id = c.Id,
                 Name = c.Name,
-                CafeName = c.Cafe.Name
+                CafeName = c.Cafe.Name,
+                ParentCategoryId = c.ParentCategoryId,
+                ParentCategoryName = c.ParentCategory != null ? c.ParentCategory.Name : null
             })
             .ToListAsync();
 
         return Ok(categories);
     }
 
-  
     [HttpPost]
     public async Task<ActionResult<Category>> CreateCategory([FromBody] CreateCategoryDto dto)
     {
-        int cafeId = int.Parse(
-            User.FindFirstValue("CafeId")!
-        );
+        int cafeId = int.Parse(User.FindFirstValue("CafeId")!);
+
         var category = new Category
         {
             Name = dto.Name,
-            CafeId = cafeId
+            CafeId = cafeId,
+            ParentCategoryId = dto.ParentCategoryId
         };
         category.Cafe = null;
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
-       
+
         return NoContent();
     }
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateCategory(int id,[FromBody] ModiifyCategory dto)
-    {   
-        var cafeId = int.Parse(
-            User.FindFirstValue("CafeId")!
-        );
-        var category = await _context.Categories.FirstOrDefaultAsync(x => x.Id == id && 
-        x.CafeId == cafeId);
 
-        if(category == null) return NotFound("ایتم مورد نظر پیدا نشد");
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateCategory(int id, [FromBody] ModiifyCategory dto)
+    {
+        var cafeId = int.Parse(User.FindFirstValue("CafeId")!);
+        var category = await _context.Categories.FirstOrDefaultAsync(x => x.Id == id && x.CafeId == cafeId);
+
+        if (category == null) return NotFound("ایتم مورد نظر پیدا نشد");
 
         category.Name = dto.Name;
-        
+        category.ParentCategoryId = dto.ParentCategoryId;
+
         try
         {
             await _context.SaveChangesAsync();
@@ -107,21 +111,16 @@ public class CategoryController : ControllerBase
         return NoContent();
     }
 
-// DELETE
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCategory(int id)
-    {   
-        var cafeId = int.Parse(
-            User.FindFirstValue("CafeId")!
-        );
-        var category = await _context.Categories.FirstOrDefaultAsync(x => 
-        x.Id == id &&
-        x.CafeId == cafeId);
-      
+    {
+        var cafeId = int.Parse(User.FindFirstValue("CafeId")!);
+        var category = await _context.Categories.FirstOrDefaultAsync(x => x.Id == id && x.CafeId == cafeId);
+
         if (category == null) return NotFound();
 
         _context.Categories.Remove(category);
-        await _context.SaveChangesAsync(); 
+        await _context.SaveChangesAsync();
 
         return NoContent();
     }

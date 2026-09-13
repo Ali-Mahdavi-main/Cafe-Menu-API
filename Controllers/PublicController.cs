@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CafeMenu.Api.Data;
 using CafeMenu.Api.Helpers;
+using CafeMenu.Api.Models;
 
 namespace CafeMenu.Api.Controllers;
 
@@ -22,9 +23,6 @@ public class PublicController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetPublicMenu(int cafeId, string accessKey)
     {
-        // Single projected query: filters cafe/key/availability in SQL instead of
-        // pulling the whole graph into memory and filtering with LINQ-to-objects.
-        // AsNoTracking since this is read-only and public.
         var cafe = await _context.Cafes
             .AsNoTracking()
             .Where(c => c.Id == cafeId && c.PublicAccessKey == accessKey)
@@ -38,31 +36,45 @@ public class PublicController : ControllerBase
                 c.WorkingHours,
                 c.EventsEnabled,
                 c.ThemeConfigJson,
-                Categories = c.Categories
-                    .Where(cat => cat.MenuItems.Any(m => m.IsAvailable))
+                ParentCategories = c.Categories
+                    .Where(cat => cat.ParentCategoryId != null && cat.ParentCategory.IsEnabled)
                     .Select(cat => new
                     {
-                        cat.Name,
-                        Items = cat.MenuItems
-                            .Where(m => m.IsAvailable)
-                            .Select(m => new
-                            {
-                                m.Id,
-                                m.Title,
-                                m.Description,
-                                m.Price,
-                                m.ImageUrl,
-                                m.IsAvailable,
-                                m.IsSpecial
-                            })
+                        parentId = cat.ParentCategory.Id,
+                        parentName = cat.ParentCategory.Name,
+                        subCategories = new[] { cat }.Select(cat2 => new
+                        {
+                            cat2.Id,
+                            cat2.Name,
+                            cat2.ParentCategoryId,
+                            Items = cat2.MenuItems
+                                .Where(m => m.IsAvailable)
+                                .Select(m => new
+                                {
+                                    m.Id,
+                                    m.Title,
+                                    m.Description,
+                                    m.Price,
+                                    m.ImageUrl,
+                                    m.IsAvailable,
+                                    m.IsSpecial
+                                })
+                        })
                     })
+                    .GroupBy(x => new { x.parentId, x.parentName })
+                    .Select(g => new
+                    {
+                        parentId = g.Key.parentId,
+                        parentName = g.Key.parentName,
+                        subCategories = g.SelectMany(x => x.subCategories).ToList()
+                    })
+                    .Where(pc => pc.subCategories.Any(sc => sc.Items.Any()))
             })
             .FirstOrDefaultAsync();
 
         if (cafe == null)
             return NotFound("کافه پیدا نشد");
 
-        // --- Default theme ---
         var theme = new Dictionary<string, object?>
         {
             { "primaryColor", "#1e293b" },
@@ -100,23 +112,27 @@ public class PublicController : ControllerBase
             }
             catch
             {
-                // ignore malformed JSON, keep defaults
             }
         }
 
-        // --- Map DB-filtered rows to the response shape, resolving absolute image URLs ---
-        var menu = cafe.Categories.Select(cat => new
+        var menu = cafe.ParentCategories.Select(pc => new
         {
-            categoryName = cat.Name,
-            items = cat.Items.Select(m => new
+            parentCategoryName = pc.parentName,
+            parentCategoryId = pc.parentId,
+            subCategories = pc.subCategories.Select(sc => new
             {
-                id = m.Id,
-                title = m.Title,
-                description = m.Description,
-                price = m.Price,
-                imageUrl = ImageUrlHelper.ToAbsolute(m.ImageUrl, Request),
-                isAvailable = m.IsAvailable,
-                isSpecial = m.IsSpecial
+                categoryId = sc.Id,
+                categoryName = sc.Name,
+                items = sc.Items.Select(m => new
+                {
+                    id = m.Id,
+                    title = m.Title,
+                    description = m.Description,
+                    price = m.Price,
+                    imageUrl = ImageUrlHelper.ToAbsolute(m.ImageUrl, Request),
+                    isAvailable = m.IsAvailable,
+                    isSpecial = m.IsSpecial
+                })
             })
         });
 

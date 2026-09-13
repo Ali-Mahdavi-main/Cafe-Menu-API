@@ -35,6 +35,7 @@ public class MenuController : ControllerBase
         var items = await _context.MenuItems
             .Where(m => m.CafeId == cafeId)
             .Include(m => m.Category)
+                .ThenInclude(c => c.ParentCategory)
             .OrderBy(m => m.Category != null ? m.Category.Name : string.Empty)
             .ThenBy(m => m.Title)
             .Select(m => new GetMenuItemDto
@@ -46,7 +47,9 @@ public class MenuController : ControllerBase
                 ImageUrl = m.ImageUrl,
                 IsAvailable = m.IsAvailable,
                 IsSpecial = m.IsSpecial,
-                CategoryName = m.Category != null ? m.Category.Name : "بدون دسته بندی"
+                CategoryName = m.Category != null ? m.Category.Name : "بدون دسته بندی",
+                ParentCategoryName = m.Category != null && m.Category.ParentCategory != null ? m.Category.ParentCategory.Name : null,
+                ParentCategoryId = m.Category != null ? m.Category.ParentCategoryId : null
             })
             .ToListAsync();
 
@@ -61,6 +64,7 @@ public class MenuController : ControllerBase
         var menuItems = await _context.MenuItems
             .Where(m => m.CafeId == cafeId && m.IsAvailable)
             .Include(m => m.Category)
+                .ThenInclude(c => c.ParentCategory)
             .OrderBy(m => m.Category != null ? m.Category.Name : string.Empty)
             .ThenBy(m => m.Title)
             .Select(m => new GetMenuItemDto
@@ -72,7 +76,9 @@ public class MenuController : ControllerBase
                 ImageUrl = m.ImageUrl,
                 IsAvailable = m.IsAvailable,
                 IsSpecial = m.IsSpecial,
-                CategoryName = m.Category != null ? m.Category.Name : "بدون دسته بندی"
+                CategoryName = m.Category != null ? m.Category.Name : "بدون دسته بندی",
+                ParentCategoryName = m.Category != null && m.Category.ParentCategory != null ? m.Category.ParentCategory.Name : null,
+                ParentCategoryId = m.Category != null ? m.Category.ParentCategoryId : null
             })
             .ToListAsync();
 

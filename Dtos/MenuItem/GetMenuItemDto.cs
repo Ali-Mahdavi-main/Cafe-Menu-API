@@ -16,5 +16,7 @@ namespace CafeMenu.Api.Dtos.MenuItem
     public bool IsSpecial { get; set; } = false;
 
     public string CategoryName { get; set; } = string.Empty;
+    public string? ParentCategoryName { get; set; }
+    public int? ParentCategoryId { get; set; }
     }
 }
