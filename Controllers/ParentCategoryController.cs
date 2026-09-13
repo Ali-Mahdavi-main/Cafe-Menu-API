@@ -12,7 +12,7 @@ using System.Security.Claims;
 namespace CafeMenu.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/parent-category")]
 [Authorize]
 public class ParentCategoryController : ControllerBase
 {
