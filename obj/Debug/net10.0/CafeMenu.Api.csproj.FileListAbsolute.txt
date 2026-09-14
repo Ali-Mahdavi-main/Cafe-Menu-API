@@ -172,3 +172,4 @@
 /home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/win-x64/native/libSkiaSharp.dll
 /home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/runtimes/win-x86/native/libSkiaSharp.dll
 /home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/CafeMenu.Api.staticwebassets.runtime.json
+/home/ali/Work/CafeProject/backend/CafeMenu.Api/bin/Debug/net10.0/dotnet-tools.json

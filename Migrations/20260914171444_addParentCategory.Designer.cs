@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CafeMenu.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260913195302_AddParentCategory")]
-    partial class AddParentCategory
+    [Migration("20260914171444_addParentCategory")]
+    partial class addParentCategory
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
