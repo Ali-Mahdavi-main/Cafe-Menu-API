@@ -37,17 +37,25 @@ public class PublicController : ControllerBase
                 c.EventsEnabled,
                 c.ThemeConfigJson,
                 ParentCategories = c.Categories
-                    .Where(cat => cat.ParentCategoryId != null && cat.ParentCategory.IsEnabled)
-                    .Select(cat => new
+                    .Where(cat => cat.ParentCategoryId != null
+                                  && cat.ParentCategory != null
+                                  && cat.ParentCategory.IsEnabled)
+                    .Where(cat => cat.MenuItems.Any(m => m.IsAvailable))
+                    .GroupBy(cat => new
                     {
-                        parentId = cat.ParentCategory.Id,
-                        parentName = cat.ParentCategory.Name,
-                        subCategories = new[] { cat }.Select(cat2 => new
+                        parentId = cat.ParentCategoryId,
+                        parentName = cat.ParentCategory!.Name
+                    })
+                    .Select(g => new
+                    {
+                        parentId = g.Key.parentId,
+                        parentName = g.Key.parentName,
+                        subCategories = g.Select(cat => new
                         {
-                            cat2.Id,
-                            cat2.Name,
-                            cat2.ParentCategoryId,
-                            Items = cat2.MenuItems
+                            cat.Id,
+                            cat.Name,
+                            cat.ParentCategoryId,
+                            Items = cat.MenuItems
                                 .Where(m => m.IsAvailable)
                                 .Select(m => new
                                 {
@@ -59,16 +67,10 @@ public class PublicController : ControllerBase
                                     m.IsAvailable,
                                     m.IsSpecial
                                 })
-                        })
+                                .ToList()
+                        }).ToList()
                     })
-                    .GroupBy(x => new { x.parentId, x.parentName })
-                    .Select(g => new
-                    {
-                        parentId = g.Key.parentId,
-                        parentName = g.Key.parentName,
-                        subCategories = g.SelectMany(x => x.subCategories).ToList()
-                    })
-                    .Where(pc => pc.subCategories.Any(sc => sc.Items.Any()))
+                    .ToList()
             })
             .FirstOrDefaultAsync();
 
@@ -112,6 +114,7 @@ public class PublicController : ControllerBase
             }
             catch
             {
+                // ignore malformed theme json
             }
         }
 
